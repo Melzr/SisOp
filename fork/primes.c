@@ -3,8 +3,15 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 
-void primo_iteracion(int fd_izq[2]) {
+/*
+ * Recibe un file descriptor de un pipe valido del cual se leeran numeros
+ * del 2 a n y se imprimiran los que sean primos.
+ */
+void imprimir_primos(int fd_izq[2]);
 
+void
+imprimir_primos(int fd_izq[2])
+{
 	close(fd_izq[1]);
 	int p = 0;
 
@@ -17,7 +24,7 @@ void primo_iteracion(int fd_izq[2]) {
 
 	int n = 0;
 	int lectura = read(fd_izq[0], &n, sizeof(n));
-	if(lectura == 0) {
+	if (lectura == 0) {
 		close(fd_izq[0]);
 		_exit(0);
 	} else if (lectura < 0) {
@@ -26,7 +33,7 @@ void primo_iteracion(int fd_izq[2]) {
 	}
 
 	int fd_der[2];
-	if ( pipe(fd_der) < 0 ){
+	if (pipe(fd_der) < 0) {
 		perror("Error en pipe");
 		_exit(-1);
 	}
@@ -38,20 +45,18 @@ void primo_iteracion(int fd_izq[2]) {
 	}
 
 	if (f > 0) {
-
 		close(fd_der[0]);
 
-		while( lectura != 0 ) {
-
-			if (n%p != 0) {
+		while (lectura != 0) {
+			if (n % p != 0) {
 				if (write(fd_der[1], &n, sizeof(n)) < 0) {
 					perror("Error en write");
 					_exit(-1);
-				}	
+				}
 			}
 
 			lectura = read(fd_izq[0], &n, sizeof(n));
-			if(lectura < 0) {
+			if (lectura < 0) {
 				perror("Error en read");
 				_exit(-1);
 			}
@@ -59,16 +64,14 @@ void primo_iteracion(int fd_izq[2]) {
 
 		close(fd_izq[0]);
 		close(fd_der[1]);
-		int wstatus;
-		int ret = wait(&wstatus);
+		wait(NULL);
 		_exit(0);
 
 	} else {
 		close(fd_izq[0]);
 		close(fd_der[1]);
-		primo_iteracion(fd_der);
+		imprimir_primos(fd_der);
 	}
-
 }
 
 
@@ -77,20 +80,15 @@ main(int argc, char *argv[])
 {
 	if (argc != 2) {
 		printf("Error: debe ingresar un unico numero como parametro\n");
-		return(0);
+		return (0);
 	}
 
 	int n = atoi(argv[1]);
 
 	if (n < 2) {
-		printf("Error: el numero ingresado debe ser mayor o igual a 2\n");
-		return(0);
-	}
-
-	int numeros[n-1];
-
-	for (int i = 2; i <= n; i++) {
-		numeros[i-2]=i;
+		printf("Error: el numero ingresado debe ser mayor o igual a "
+		       "2\n");
+		return (0);
 	}
 
 	int fd[2];
@@ -108,25 +106,23 @@ main(int argc, char *argv[])
 	}
 
 	if (i > 0) {
-
 		close(fd[0]);
+		int i = 2;
 
-		if (write(fd[1], numeros, sizeof(numeros)) < 0) {
-			perror("Error en write");
-			_exit(-1);
+		while (i <= n) {
+			if (write(fd[1], &i, sizeof(i)) < 0) {
+				perror("Error en write");
+				_exit(-1);
+			}
+			i++;
 		}
 
 		close(fd[1]);
+		wait(NULL);
+		_exit(0);
 
-		int wstatus;
-		int ret = wait(&wstatus);		
-		
-		_exit(0); // debo agarra el codigo de error?
-
-	} else { 
-
-		primo_iteracion(fd);
-
+	} else {
+		imprimir_primos(fd);
 	}
 
 	return 0;

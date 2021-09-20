@@ -6,8 +6,7 @@
 int
 main(void)
 {
-
-	srandom( time(NULL) );
+	srandom(time(NULL));
 
 	int fds_1[2];
 	int fds_2[2];
@@ -23,7 +22,7 @@ main(void)
 	printf("Hola, soy PID %d:\n", getpid());
 	printf("\t- primer pipe me devuelve: [%i, %i]\n", fds_1[0], fds_1[1]);
 	printf("\t- segundo pipe me devuelve: [%i, %i]\n\n", fds_2[0], fds_2[1]);
-	
+
 	int i = fork();
 
 	if (i < 0) {
@@ -32,13 +31,12 @@ main(void)
 	}
 
 	if (i == 0) {
-
 		close(fds_1[1]);
 		close(fds_2[0]);
 
 		int lectura = 0;
 
-		if ( read(fds_1[0], &lectura, sizeof(lectura)) < 0 ) {
+		if (read(fds_1[0], &lectura, sizeof(lectura)) < 0) {
 			perror("Error en read");
 			_exit(-1);
 		}
@@ -50,8 +48,8 @@ main(void)
 		printf("\t- reenvio valor en fd=%i y termino\n\n", fds_2[1]);
 
 		close(fds_1[0]);
-		
-		if ( write(fds_2[1], &lectura, sizeof(lectura)) < 0 ) {
+
+		if (write(fds_2[1], &lectura, sizeof(lectura)) < 0) {
 			perror("Error en write");
 			_exit(-1);
 		}
@@ -59,9 +57,7 @@ main(void)
 		close(fds_2[1]);
 		_exit(0);
 
-
 	} else {
-
 		close(fds_1[0]);
 		close(fds_2[1]);
 
@@ -73,15 +69,17 @@ main(void)
 		printf("\t- getppid me devuelve: %d\n", getppid());
 		printf("\t- random me devuelve: %i\n", escritura);
 
-		if ( write(fds_1[1], &escritura, sizeof(escritura)) < 0 ) {
+		if (write(fds_1[1], &escritura, sizeof(escritura)) < 0) {
 			perror("Error en write");
 			_exit(-1);
 		}
 
-		printf("\t- envio valor %i a traves de fd=%i\n\n", escritura, fds_1[1]);
+		printf("\t- envio valor %i a traves de fd=%i\n\n",
+		       escritura,
+		       fds_1[1]);
 		close(fds_1[1]);
 
-		if ( read(fds_2[0], &lectura, sizeof(lectura)) < 0 ) {
+		if (read(fds_2[0], &lectura, sizeof(lectura)) < 0) {
 			perror("Error en read");
 			_exit(-1);
 		}
@@ -90,7 +88,6 @@ main(void)
 		printf("\t- recibi valor %i via fd=%i\n", lectura, fds_2[0]);
 		close(fds_2[0]);
 		_exit(0);
-
 	}
 
 	return 0;
