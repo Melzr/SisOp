@@ -10,7 +10,6 @@ main(void)
 
 	int fds_1[2];
 	int fds_2[2];
-
 	int pipe_1 = pipe(fds_1);
 	int pipe_2 = pipe(fds_2);
 
@@ -24,9 +23,8 @@ main(void)
 	printf("\t- segundo pipe me devuelve: [%i, %i]\n\n", fds_2[0], fds_2[1]);
 
 	int i = fork();
-
 	if (i < 0) {
-		perror("Error en el fork");
+		perror("Error en fork");
 		_exit(-1);
 	}
 

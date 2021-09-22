@@ -6,7 +6,7 @@
 #include <sys/wait.h>
 
 #ifndef NARGS
-#define NARGS 3
+#define NARGS 4
 #endif
 
 /*
@@ -91,7 +91,6 @@ ejecutar_comando(char *comando, FILE **archivo)
 	}
 
 	if (f == 0) {
-		printf("%d\n", getpid());
 		execvp(argumentos[0], argumentos);
 		perror("Error en execvp");
 		_exit(-1);
