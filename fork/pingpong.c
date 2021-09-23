@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include <sys/types.h>
+#include <sys/wait.h>
+
 int
 main(void)
 {
@@ -85,6 +88,7 @@ main(void)
 		printf("Hola, de nuevo PID %d:\n", getpid());
 		printf("\t- recibi valor %i via fd=%i\n", lectura, fds_2[0]);
 		close(fds_2[0]);
+		wait(NULL);
 		_exit(0);
 	}
 
