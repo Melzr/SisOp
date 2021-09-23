@@ -18,17 +18,10 @@
  */
 char *file_path(char *path, char *file_name);
 
-/*
- * Imprime el path si nombre coincide con la cadena_buscada segun comparador
- */
-void imprimir_si_buscado(char *nombre,
-                         char *cadena_buscada,
-                         char path_actual[PATH_MAX],
-                         char *(*comparador)(const char *, const char *) );
 
 /*
  * Busca recursivamente a partir del directorio actual archivos y subdirectorios
- * cuya comparacion con cadena no sea nula
+ * que contengan a cadena
  */
 void buscar(int fds, char *cadena, char *(*comparador)(const char *, const char *) );
 
@@ -70,17 +63,7 @@ file_path(char *path, char *file_name)
 	if (strlen(path) > 0)
 		strcat(path, "/");
 	return strcat(path, file_name);
-	//return (strcat(path_nuevo, "\0"));
-}
-
-void
-imprimir_si_buscado(char *nombre,
-                    char *cadena_buscada,
-                    char path[PATH_MAX],
-                    char *(*comparador)(const char *, const char *) )
-{
-	if (comparador(nombre, cadena_buscada) != NULL)
-		printf("%s\n", path);
+	// return (strcat(path_nuevo, "\0"));
 }
 
 void
@@ -107,24 +90,23 @@ buscar_aux(int fds,
 	while (entry != NULL) {
 		char path_aux[PATH_MAX];
 		strcpy(path_aux, path);
+
 		if (entry->d_type == DT_DIR) {
 			if ((strcmp(entry->d_name, ".") != 0) &&
-			    (strcmp(entry->d_name, "..") != 0)) { 
+			    (strcmp(entry->d_name, "..") != 0)) {
 				file_path(path_aux, entry->d_name);
-				imprimir_si_buscado(entry->d_name,
-				                    cadena,
-				                    path_aux,
-				                    comparador);
+				if (comparador(entry->d_name, cadena) != NULL)
+					printf("%s\n", path_aux);
+
 				int fds_dir = openat(dirfd(directorio),
 				                     entry->d_name,
 				                     O_DIRECTORY);
 				buscar_aux(fds_dir, path_aux, cadena, comparador);
 			}
+
 		} else {
-			imprimir_si_buscado(entry->d_name,
-			                    cadena,
-			                    file_path(path_aux, entry->d_name),
-			                    comparador);
+			if (comparador(entry->d_name, cadena) != NULL)
+				printf("%s\n", file_path(path_aux, entry->d_name));
 		}
 
 		entry = readdir(directorio);
