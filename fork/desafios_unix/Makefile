@@ -7,8 +7,8 @@ PROGS := ps ls cp
 all: $(PROGS)
 
 ps: ps.o
-ls: ls.c
-cp: cp.c
+ls: ls.o
+cp: cp.o
 
 format: .clang-files ../.clang-format
 	xargs -r clang-format -i <$<
