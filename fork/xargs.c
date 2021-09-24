@@ -16,13 +16,18 @@
  * Devuelve la cantidad de caracteres leidos por ultima vez o -1 en caso de
  * error incluyendo final de archivo.
  */
-int obtener_argumentos(char *argumentos[NARGS + 2], char *comando, FILE **archivo);
+int lectura_argumentos(char *argumentos[NARGS + 2], char *comando, FILE **archivo);
 
 /*
  * Creara un proceso por cada NARGS lineas de archivo, cada procedo ejecutara
  * el comando recibido con los respectivos argumentos.
  */
 void ejecutar_comando(char *comando, FILE **archivo);
+
+/*
+ * Libera la memoria reservada por un vector de strings
+ */
+void liberar_argumentos(char *argumentos[NARGS + 2]);
 
 
 int
@@ -44,7 +49,7 @@ main(int argc, char *argv[])
 
 
 int
-obtener_argumentos(char *argumentos[NARGS + 2], char *comando, FILE **archivo)
+lectura_argumentos(char *argumentos[NARGS + 2], char *comando, FILE **archivo)
 {
 	argumentos[0] = comando;
 
@@ -77,12 +82,21 @@ obtener_argumentos(char *argumentos[NARGS + 2], char *comando, FILE **archivo)
 	return lectura;
 }
 
+void
+liberar_argumentos(char *argumentos[NARGS + 2])
+{
+	int i = 1;
+	while ((i < (NARGS + 2)) && (argumentos[i] != NULL)) {
+		free(argumentos[i]);
+		i++;
+	}
+}
 
 void
 ejecutar_comando(char *comando, FILE **archivo)
 {
 	char *argumentos[NARGS + 2];
-	int lectura = obtener_argumentos(argumentos, comando, archivo);
+	int lectura = lectura_argumentos(argumentos, comando, archivo);
 	int f = fork();
 
 	if (f < 0) {
@@ -93,21 +107,19 @@ ejecutar_comando(char *comando, FILE **archivo)
 	if (f == 0) {
 		execvp(argumentos[0], argumentos);
 		perror("Error en execvp");
+		liberar_argumentos(argumentos);
 		_exit(-1);
 	} else {
 		int estado = -1;
 		wait(&estado);
 		if (!WIFEXITED(estado)) {
 			perror("Error en uno de los procesos");
+			liberar_argumentos(argumentos);
 			_exit(-1);
 		}
 	}
 
-	int i = 1;
-	while ((i < (NARGS + 2)) && (argumentos[i] != NULL)) {
-		free(argumentos[i]);
-		i++;
-	}
+	liberar_argumentos(argumentos);
 
 	if (lectura > 0)
 		ejecutar_comando(comando, archivo);

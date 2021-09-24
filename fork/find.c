@@ -63,7 +63,6 @@ file_path(char *path, char *file_name)
 	if (strlen(path) > 0)
 		strcat(path, "/");
 	return strcat(path, file_name);
-	// return (strcat(path_nuevo, "\0"));
 }
 
 void

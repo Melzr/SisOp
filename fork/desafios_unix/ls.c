@@ -14,7 +14,8 @@
 
 
 /*
- * Imprime recursivamente a partir del directorio actual archivos y subdirectorios
+ * Imprime recursivamente a partir del directorio actual archivos y
+ * subdirectorios
  */
 void recorrer_directorio(int fds);
 
@@ -23,11 +24,11 @@ void recorrer_directorio(int fds);
  * imprimira su tipo, permisos, usuario, nombre y a que archivo o directorio
  * apunta en caso de ser un enlace simbolico
  */
-void mostrar_informacion(char* nombre);
+void mostrar_informacion(char *nombre);
 
 /*
  * Dado un mode_t valido de un archivo completara las primeras 3 posiciones con
- * r w x si el usuario tiene permisos de lectura escritura y ejecucion 
+ * r w x si el usuario tiene permisos de lectura escritura y ejecucion
  * respectivamente, las siguientes 3 posiciones si el grupo tiene esos permisos
  * y las ultimas 3 si otros tienen esos permisos
  */
@@ -63,7 +64,7 @@ recorrer_directorio(int fds)
 
 	struct dirent *entry = readdir(directorio);
 
-	while (entry != NULL) {	
+	while (entry != NULL) {
 		mostrar_informacion(entry->d_name);
 		entry = readdir(directorio);
 	}
@@ -71,7 +72,9 @@ recorrer_directorio(int fds)
 	closedir(directorio);
 }
 
-void completar_permisos(char permisos[9], mode_t mode) {
+void
+completar_permisos(char permisos[9], mode_t mode)
+{
 	if ((mode & S_IRUSR) == S_IRUSR)
 		permisos[0] = 'r';
 	if ((mode & S_IWUSR) == S_IWUSR)
@@ -92,11 +95,12 @@ void completar_permisos(char permisos[9], mode_t mode) {
 		permisos[8] = 'x';
 }
 
-void mostrar_informacion(char* nombre) {
-
+void
+mostrar_informacion(char *nombre)
+{
 	struct stat sb;
 
-    if (lstat(nombre, &sb) == -1) {
+	if (lstat(nombre, &sb) == -1) {
 		perror("Error en lstat");
 		exit(-1);
 	}
@@ -108,7 +112,7 @@ void mostrar_informacion(char* nombre) {
 	else if (S_ISLNK(sb.st_mode)) {
 		permisos[0] = 'l';
 
-		char* linkname = malloc(sb.st_size + 1);
+		char *linkname = malloc(sb.st_size + 1);
 		if (linkname == NULL) {
 			perror("Error en malloc");
 			exit(-1);
@@ -116,13 +120,13 @@ void mostrar_informacion(char* nombre) {
 
 		ssize_t r = readlink(nombre, linkname, sb.st_size + 1);
 		if (r == -1) {
-		   perror("Error en readlink");
-		   exit(-1);
+			perror("Error en readlink");
+			exit(-1);
 		}
 
 		if (r > sb.st_size) {
-		   perror("Error en enlace simbolico");
-		   exit(-1);
+			perror("Error en enlace simbolico");
+			exit(-1);
 		}
 
 		linkname[r] = '\0';
@@ -132,6 +136,6 @@ void mostrar_informacion(char* nombre) {
 		free(linkname);
 	}
 
-	completar_permisos(permisos+1, sb.st_mode);
+	completar_permisos(permisos + 1, sb.st_mode);
 	printf("%s  %ld  %s \n", permisos, (long) sb.st_uid, nombre);
 }

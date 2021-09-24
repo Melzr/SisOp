@@ -28,6 +28,8 @@ main()
 
 	struct dirent *entry = readdir(proc);
 
+	printf("    PID COMMAND\n");
+
 	while (entry != NULL) {
 		if (entry->d_type == DT_DIR && (es_numero(entry->d_name))) {
 			imprimir_proceso(entry->d_name);
