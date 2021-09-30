@@ -7,7 +7,7 @@
 int
 exit_shell(char *cmd)
 {
-	// Your code here
+	return (strcmp(cmd, "exit") == 0);
 
 	return 0;
 }

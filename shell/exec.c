@@ -83,21 +83,64 @@ exec_cmd(struct cmd *cmd)
 	struct backcmd *b;
 	struct execcmd *r;
 	struct pipecmd *p;
+	int f = -1;
 
 	switch (cmd->type) {
 	case EXEC:
-		// spawns a command
-		//
-		// Your code here
-		printf("Commands are not yet implemented\n");
+
+		f = fork();
+		if (f < 0) {
+			printf_debug("Error en fork"); // perror o tambien printf_debug?
+			free_command(cmd);
+			_exit(-1);
+		}
+
+		if (f == 0) {
+			execvp(((struct execcmd*)cmd)->argv[0], ((struct execcmd*)cmd)->argv);
+			printf_debug("Error en execvp");
+			free_command(cmd);
+			_exit(-1);
+		} else {
+			int estado = -1;
+			wait(&estado);		// ver funcionamiento de wait
+			if (!WIFEXITED(estado)) {
+				printf_debug("Error en uno de los procesos");
+			}
+		}
+
+		free_command(cmd);
 		_exit(-1);
 		break;
 
 	case BACK: {
-		// runs a command in background
-		//
-		// Your code here
-		printf("Background process are not yet implemented\n");
+		
+		f = fork();
+		if (f < 0) {
+			printf_debug("Error en fork"); // perror o tambien printf_debug?
+			free_command(cmd);
+			_exit(-1);
+		}
+
+		if (f == 0) {
+			struct cmd* c = ((struct backcmd*)cmd)->c;
+			free(cmd);
+			exec_cmd(c);
+		} else {
+
+			printf("[PID=%d]\n", f);
+
+			int estado = -1;
+			int w = -1;
+			do {
+				w = waitpid(f, &estado, WNOHANG);
+				if (!WIFEXITED(estado)) {
+					printf_debug("Error en uno de los procesos");
+				}
+			} while (w != 0);
+			
+		}
+
+		free_command(cmd);
 		_exit(-1);
 		break;
 	}
