@@ -57,24 +57,145 @@ set_environ_vars(char **eargv, int eargc)
 //
 // Find out what permissions it needs.
 // Does it have to be closed after the execve(2) call?
-//
-// Hints:
-// - if O_CREAT is used, add S_IWUSR and S_IRUSR
-// 	to make it a readable normal file
 static int
 open_redir_fd(char *file, int flags)
 {
-	// Your code here
+	if (flags & O_CREAT)
+		return open(file, flags, S_IWUSR | S_IRUSR);
 
-	return -1;
+	return open(file, flags);
 }
 
+
+static void
+pipe_coordinator(struct pipecmd *pipe_cmd)
+{
+	struct cmd *l = pipe_cmd->leftcmd;
+	struct cmd *r = pipe_cmd->rightcmd;
+
+	int fds[2];
+	if (pipe(fds) < 0) {
+		fprintf_debug(stderr, "Error en pipe");
+		return;
+	}
+
+	int f_l = fork();
+	if (f_l < 0) {
+		fprintf_debug(stderr, "Error en fork");
+		close(fds[0]);
+		close(fds[1]);
+		return;
+	}
+
+	if (f_l == 0) {  // l
+		free_command(r);
+		free(pipe_cmd);
+		close(fds[0]);
+		dup2(fds[1], 1);  // leak
+		close(fds[1]);
+		exec_cmd(l);
+	}
+
+	int f_r = fork();
+	if (f_r < 0) {
+		printf_debug("Error en fork");  // espero al izq?
+		close(fds[0]);
+		close(fds[1]);
+		return;
+	}
+
+	if ((f_l > 0) && (f_r == 0)) {  // r
+		free_command(l);
+		free(pipe_cmd);
+		close(fds[1]);
+		dup2(fds[0], 0);
+		close(fds[0]);
+		exec_cmd(r);
+	}
+
+	if ((f_l > 0) && (f_r > 0)) {  // coordinator
+		close(fds[1]);
+		close(fds[0]);
+		wait(NULL);
+		wait(NULL);
+	}
+}
+
+
+// Sets file descriptors 0,1,2
+// Returns -1 on error
+static int
+set_redir_fds(struct execcmd *cmd)
+{
+	int fds;
+	int rdwr_flags = (O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC);
+	int rd_flags = (O_CLOEXEC | O_RDONLY);
+
+	if (strlen(cmd->out_file) > 0) {
+		fds = open_redir_fd(cmd->out_file, rdwr_flags);
+		if (dup2(fds, 1) < 0) {
+			fprintf_debug(stderr, "Error al redirigir stdout");
+			return -1;
+		}
+		close(fds);
+	}
+
+	if (strlen(cmd->in_file) > 0) {
+		fds = open_redir_fd(cmd->in_file, rd_flags);
+		if (dup2(fds, 0) < 0) {
+			fprintf_debug(stderr, "Error al redirigir stdin");
+			return -1;
+		}
+		close(fds);
+	}
+
+	if (strlen(cmd->err_file) > 0) {
+		if (strcmp(cmd->err_file, "&1") == 0) {
+			if (dup2(1, 2) < 0) {
+				fprintf_debug(stderr,
+				              "Error al redirigir stderr");
+				return -1;
+			}
+		} else {
+			fds = open_redir_fd(cmd->err_file, rdwr_flags);
+			if (dup2(fds, 2) < 0) {
+				fprintf_debug(stderr,
+				              "Error al redirigir stderr");
+				return -1;
+			}
+			close(fds);
+		}
+	}
+
+	return 0;
+}
+
+
+static int
+argv_copy(char *argv[], int argc, char *argv_copy[])
+{
+	for (int i = 0; i < argc; i++) {
+		argv_copy[i] = malloc(sizeof(char) * (strlen(argv[i]) + 1));
+		if (argv_copy[i] == NULL)
+			return -1;
+		strcpy(argv_copy[i], argv[i]);
+	}
+
+	argv_copy[argc] = NULL;
+	return 0;
+}
+
+
+static void
+free_args(char *argv[], int argc)
+{
+	for (int i = 0; i < argc; i++) {
+		free(argv[i]);
+	}
+}
+
+
 // executes a command - does not return
-//
-// Hint:
-// - check how the 'cmd' structs are defined
-// 	in types.h
-// - casting could be a good option
 void
 exec_cmd(struct cmd *cmd)
 {
@@ -88,24 +209,31 @@ exec_cmd(struct cmd *cmd)
 	switch (cmd->type) {
 	case EXEC:
 
+		e = (struct execcmd *) cmd;
 		f = fork();
+
 		if (f < 0) {
-			printf_debug("Error en fork"); // perror o tambien printf_debug?
+			fprintf_debug(stderr, "Error en fork");
 			free_command(cmd);
 			_exit(-1);
 		}
 
 		if (f == 0) {
-			execvp(((struct execcmd*)cmd)->argv[0], ((struct execcmd*)cmd)->argv);
-			printf_debug("Error en execvp");
-			free_command(cmd);
-			_exit(-1);
-		} else {
-			int estado = -1;
-			wait(&estado);		// ver funcionamiento de wait
-			if (!WIFEXITED(estado)) {
-				printf_debug("Error en uno de los procesos");
+			int argc = e->argc;
+			char *argv[argc + 1];
+
+			if (argv_copy(e->argv, argc, argv) == -1) {
+				free_command(cmd);
+				fprintf(stderr, "Error en malloc");
+				_exit(-1);
 			}
+
+			free_command(cmd);
+			execvp(argv[0], argv);
+			fprintf_debug(stderr, "Error en execvp");
+			free_args(argv, argc);
+		} else {
+			wait(NULL);
 		}
 
 		free_command(cmd);
@@ -113,31 +241,50 @@ exec_cmd(struct cmd *cmd)
 		break;
 
 	case BACK: {
-		
+		b = (struct backcmd *) cmd;
+
+		if (b->c->type != EXEC) {
+			fprintf(stderr, "No soportado");
+			_exit(-1);
+		}
+
+		struct execcmd *c = (struct execcmd *) b->c;
+		int argc = c->argc;
+		char *argv[argc + 1];
+
+		if (argv_copy(c->argv, argc, argv) == -1) {
+			free_command(cmd);
+			fprintf(stderr, "Error en malloc");
+			_exit(-1);
+		}
+
+		free_command(cmd);
+		execvp(argv[0], argv);
+		fprintf_debug(stderr, "Error en execvp");
+		free_args(argv, argc);
+		_exit(-1);
+		break;
+	}
+
+	case REDIR: {
+		r = (struct execcmd *) cmd;
 		f = fork();
+
 		if (f < 0) {
-			printf_debug("Error en fork"); // perror o tambien printf_debug?
+			fprintf_debug(stderr, "Error en fork");
 			free_command(cmd);
 			_exit(-1);
 		}
 
 		if (f == 0) {
-			struct cmd* c = ((struct backcmd*)cmd)->c;
-			free(cmd);
-			exec_cmd(c);
+			if (set_redir_fds(r) == -1) {
+				free_command(cmd);
+				_exit(-1);
+			}
+			execvp(r->argv[0], r->argv);
+			fprintf_debug(stderr, "Error en execvp");
 		} else {
-
-			printf("[PID=%d]\n", f);
-
-			int estado = -1;
-			int w = -1;
-			do {
-				w = waitpid(f, &estado, WNOHANG);
-				if (!WIFEXITED(estado)) {
-					printf_debug("Error en uno de los procesos");
-				}
-			} while (w != 0);
-			
+			wait(NULL);
 		}
 
 		free_command(cmd);
@@ -145,29 +292,31 @@ exec_cmd(struct cmd *cmd)
 		break;
 	}
 
-	case REDIR: {
-		// changes the input/output/stderr flow
-		//
-		// To check if a redirection has to be performed
-		// verify if file name's length (in the execcmd struct)
-		// is greater than zero
-		//
-		// Your code here
-		printf("Redirections are not yet implemented\n");
-		_exit(-1);
-		break;
-	}
-
 	case PIPE: {
-		// pipes two commands
-		//
-		// Your code here
-		printf("Pipes are not yet implemented\n");
+		p = (struct pipecmd *) cmd;
 
-		// free the memory allocated
-		// for the pipe tree structure
-		free_command(parsed_pipe);
+		if ((p->leftcmd->type != EXEC) ||
+		    (p->rightcmd->type != EXEC && p->rightcmd->type != PIPE)) {
+			fprintf_debug(stderr, "No soportado por pipe");
+			free_command(cmd);
+			_exit(-1);
+		}
 
+		f = fork();
+		if (f < 0) {
+			fprintf_debug(stderr, "Error en fork");
+			free_command(cmd);
+			_exit(-1);
+		}
+
+		if (f == 0) {
+			pipe_coordinator(p);
+		} else {
+			wait(NULL);
+		}
+
+		free_command(cmd);
+		_exit(-1);
 		break;
 	}
 	}

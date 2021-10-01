@@ -44,19 +44,18 @@ run_cmd(char *cmd)
 	// store the pid of the process
 	parsed->pid = p;
 
-	// background process special treatment
-	// Hint:
-	// - check if the process is
-	//		going to be run in the 'back'
-	// - print info about it with
-	// 	'print_back_info()'
-	//
-	// Your code here
+	if (parsed->type == BACK) {
+		print_back_info(parsed);
+	} else {
+		// waits for the process to finish
+		waitpid(p, &status, 0);
+		print_status_info(parsed);
+	}
 
-	// waits for the process to finish
-	waitpid(p, &status, 0);
-
-	print_status_info(parsed);
+	int w = -1;
+	do {
+		w = waitpid(-1, &status, WNOHANG);
+	} while (w > 0);
 
 	free_command(parsed);
 
