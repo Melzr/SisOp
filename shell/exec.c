@@ -45,15 +45,14 @@ set_environ_vars(char **eargv, int eargc)
 {
 	for(int i = 0; i < eargc; i++) {
 		int index = block_contains(eargv[i], '=');
+		size_t n = strlen(eargv[i]);
 		if (index > 1) {
-			size_t n = strlen(eargv[i]);
 			char key[index+1];
 			char value[n-index];
 			get_environ_key(eargv[i], key);
 			get_environ_value(eargv[i], value, index);
-			if (setenv(key, value, 1) < 0) {
-				fprintf_debug(stderr, "Error en setenv\n"); // no hago exit
-			}	
+			if (setenv(key, value, 1) < 0)
+				fprintf_debug(stderr, "Error en setenv\n");
 		}
 	}
 }
@@ -73,9 +72,54 @@ open_redir_fd(char *file, int flags)
 	return open(file, flags);
 }
 
+// Sets file as fd
+// Returns -1 on error
+static int
+set_fd(char *file, int flags, int fd)
+{
+	int new_fd = open_redir_fd(file, flags);
+	if (dup2(new_fd, fd) < 0) {
+		fprintf_debug(stderr, "Error al redirigir %s\n", file);
+		close(new_fd);
+		return -1;
+	}
+	close(new_fd);
+	return 0;
+}
+ 
+// Sets file descriptors 0,1,2
+// Returns -1 on error
+static int
+set_redir_fds(struct execcmd *cmd)
+{
+	int rdwr_flags = (O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC);
+	int rd_flags = (O_CLOEXEC | O_RDONLY);
+
+	if (strlen(cmd->out_file) > 0)
+		if (set_fd(cmd->out_file, rdwr_flags, 1) < 0)
+			return -1;
+
+	if (strlen(cmd->in_file) > 0) {
+		if (set_fd(cmd->in_file, rd_flags, 0) < 0)
+			return -1;
+	}
+
+	if (strlen(cmd->err_file) > 0) {
+		if (strcmp(cmd->err_file, "&1") == 0) {
+			if (dup2(1, 2) < 0) {
+				fprintf_debug(stderr,
+				              "Error al redirigir stderr\n");
+				return -1;
+			}
+		} else if (set_fd(cmd->err_file, rdwr_flags, 2) < 0)
+			return -1;
+	}
+
+	return 0;
+}
 
 static void
-pipe_coordinator(struct pipecmd *pipe_cmd)
+pipe_coordinator(struct pipecmd *pipe_cmd, int* status)
 {
 	struct cmd *l = pipe_cmd->leftcmd;
 	struct cmd *r = pipe_cmd->rightcmd;
@@ -94,11 +138,11 @@ pipe_coordinator(struct pipecmd *pipe_cmd)
 		return;
 	}
 
-	if (f_l == 0) {  // l
+	if (f_l == 0) { 	// left
 		free_command(r);
 		free(pipe_cmd);
 		close(fds[0]);
-		dup2(fds[1], 1);  // leak
+		dup2(fds[1], 1);
 		close(fds[1]);
 		exec_cmd(l);
 	}
@@ -112,7 +156,7 @@ pipe_coordinator(struct pipecmd *pipe_cmd)
 		return;
 	}
 
-	if ((f_l > 0) && (f_r == 0)) {  // r
+	if ((f_l > 0) && (f_r == 0)) { // right
 		free_command(l);
 		free(pipe_cmd);
 		close(fds[1]);
@@ -124,61 +168,12 @@ pipe_coordinator(struct pipecmd *pipe_cmd)
 	if ((f_l > 0) && (f_r > 0)) {  // coordinator
 		close(fds[1]);
 		close(fds[0]);
-		wait(NULL);
-		wait(NULL);
+		wait(status);
+		wait(status);
 	}
 }
 
-
-// Sets file descriptors 0,1,2
-// Returns -1 on error
-static int
-set_redir_fds(struct execcmd *cmd)
-{
-	int fds;
-	int rdwr_flags = (O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC);
-	int rd_flags = (O_CLOEXEC | O_RDONLY);
-
-	if (strlen(cmd->out_file) > 0) {
-		fds = open_redir_fd(cmd->out_file, rdwr_flags);
-		if (dup2(fds, 1) < 0) {
-			fprintf_debug(stderr, "Error al redirigir stdout\n");
-			return -1;
-		}
-		close(fds);
-	}
-
-	if (strlen(cmd->in_file) > 0) {
-		fds = open_redir_fd(cmd->in_file, rd_flags);
-		if (dup2(fds, 0) < 0) {
-			fprintf_debug(stderr, "Error al redirigir stdin\n");
-			return -1;
-		}
-		close(fds);
-	}
-
-	if (strlen(cmd->err_file) > 0) {
-		if (strcmp(cmd->err_file, "&1") == 0) {
-			if (dup2(1, 2) < 0) {
-				fprintf_debug(stderr,
-				              "Error al redirigir stderr\n");
-				return -1;
-			}
-		} else {
-			fds = open_redir_fd(cmd->err_file, rdwr_flags);
-			if (dup2(fds, 2) < 0) {
-				fprintf_debug(stderr,
-				              "Error al redirigir stderr\n");
-				return -1;
-			}
-			close(fds);
-		}
-	}
-
-	return 0;
-}
-
-
+// Returns -1 on malloc error
 static int
 argv_copy(char *argv[], int argc, char *argv_copy[])
 {
@@ -193,7 +188,6 @@ argv_copy(char *argv[], int argc, char *argv_copy[])
 	return 0;
 }
 
-
 static void
 free_args(char *argv[], int argc)
 {
@@ -202,6 +196,16 @@ free_args(char *argv[], int argc)
 	}
 }
 
+static void
+end_as_status(int status)
+{
+	if (WEXITSTATUS(status)) 
+		_exit(WEXITSTATUS(status));
+	else if (WIFSIGNALED(status))
+		kill(getpid(), WTERMSIG(status));
+	else 
+		_exit(status);
+}
 
 // executes a command - does not return
 void
@@ -212,14 +216,13 @@ exec_cmd(struct cmd *cmd)
 	struct backcmd *b;
 	struct execcmd *r;
 	struct pipecmd *p;
-	int f = -1;
 	int status = 0;
 
 	switch (cmd->type) {
 	case EXEC:
 
 		e = (struct execcmd *) cmd;
-		f = fork();
+		int f = fork();
 
 		if (f < 0) {
 			fprintf_debug(stderr, "Error en fork\n");
@@ -243,17 +246,11 @@ exec_cmd(struct cmd *cmd)
 			fprintf_debug(stderr, "Error en execvp\n");
 			free_args(argv, argc);
 			_exit(-1);
-		} else {
+		} else
 			wait(&status);
-		}
 
 		free_command(cmd);
-
-		if (WIFEXITED(status))
-			_exit(WEXITSTATUS(status));
-		else
-			_exit(-1);
-		
+		end_as_status(status);
 		break;
 
 	case BACK: {
@@ -267,23 +264,15 @@ exec_cmd(struct cmd *cmd)
 
 	case REDIR: {
 		r = (struct execcmd *) cmd;
-		f = fork();
 
-		if (f < 0) {
-			fprintf_debug(stderr, "Error en fork\n");
+		if (set_redir_fds(r) == 0) {
+			cmd->type = EXEC;
+			exec_cmd(cmd);
+		} else {
 			free_command(cmd);
 			_exit(-1);
 		}
 
-		if (f == 0) {
-			if (set_redir_fds(r) == 0)
-				exec_cmd(cmd);
-		} else {
-			wait(&status);
-		}
-
-		free_command(cmd);
-		_exit(status);
 		break;
 	}
 
@@ -291,13 +280,13 @@ exec_cmd(struct cmd *cmd)
 		p = (struct pipecmd *) cmd;
 
 		if ((p->leftcmd->type != EXEC) ||
-		    (p->rightcmd->type != EXEC && p->rightcmd->type != PIPE)) {
-			fprintf_debug(stderr, "No soportado por pipe\n");
+		    (p->rightcmd->type == BACK)) {
+			fprintf_debug(stderr, "No soportado\n");
 			free_command(cmd);
 			_exit(-1);
 		}
 
-		f = fork();
+		int f = fork();
 		if (f < 0) {
 			fprintf_debug(stderr, "Error en fork\n");
 			free_command(cmd);
@@ -305,13 +294,17 @@ exec_cmd(struct cmd *cmd)
 		}
 
 		if (f == 0) {
-			pipe_coordinator(p);
-		} else {
+			pipe_coordinator(p, &status);
+		} else
 			wait(&status);
-		}
 
 		free_command(cmd);
-		_exit(status);
+
+		if (WEXITSTATUS(status))
+			_exit(WEXITSTATUS(status));
+		else
+			_exit(-1);
+
 		break;
 	}
 	}

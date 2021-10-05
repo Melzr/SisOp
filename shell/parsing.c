@@ -98,7 +98,7 @@ expand_environ_var(char *arg)
 		return arg;
 
 	if (strcmp(arg, "$?") == 0) {
-		arg = realloc(arg, sizeof(char)*5);
+		arg = realloc(arg, sizeof(char)*4);
 		sprintf(arg, "%d", status);
 		return arg;
 	}

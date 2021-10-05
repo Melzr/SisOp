@@ -12,16 +12,17 @@ run_cmd(char *cmd)
 
 	int w = -1;
 	do {
-		w = waitpid(-1, &status, WNOHANG);
+		w = waitpid(-1, NULL, WNOHANG);
 	} while (w > 0);
+
 
 	// if the "enter" key is pressed
 	// just print the promt again
-	if (cmd[0] == END_STRING)     // actualizar correctamente status
+	if (cmd[0] == END_STRING)
 		return 0;
 
 	// "cd" built-in call
-	if (cd(cmd))
+	if (cd(cmd)) 
 		return 0;
 
 	// "exit" built-in call

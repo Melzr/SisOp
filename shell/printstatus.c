@@ -27,7 +27,7 @@ print_status_info(struct cmd *cmd)
 		        COLOR_RESET);
 #endif
 		status = -WTERMSIG(status);
-	} else if (WTERMSIG(status)) {
+	} else if (WIFSTOPPED(status)) {
 #ifndef SHELL_NO_INTERACTIVE
 		fprintf(stdout,
 		        "%s	Program: [%s] stopped, status: %d %s\n",

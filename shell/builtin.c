@@ -1,4 +1,5 @@
 #include "builtin.h"
+#include "utils.h"
 
 // returns true if the 'exit' call
 // should be performed
@@ -31,18 +32,20 @@ cd(char *cmd)
 		dir = getenv("HOME");
 	} else if (strncmp(cmd, "cd ", 3) == 0) {
 		dir = cmd+3;
-	} else 
+	} else {
 		return 0; 
+	}
 
 	if (chdir(dir) < 0) {
 		perror("Error: cannot cd");
-		return 0;
+		status = 2;
+		return -1;
 	} else {
-		char *buf = NULL;
-		snprintf(promt, sizeof promt, "(%s)", getcwd(buf, 0));
-		free(buf);		//// lo debe imprimir desde HOME?
-	}																// falta liberarlo
+		char buf[PRMTLEN];
+		snprintf(promt, sizeof promt, "(%s)", getcwd(buf, PRMTLEN));
+	}
 
+	status = 0;
 	return 1;
 }
 
@@ -57,9 +60,11 @@ pwd(char *cmd)
 	if (strcmp(cmd, "pwd") != 0)
 		return 0;
 
-	char* buf = NULL;
-	printf("%s\n", getcwd(buf, 0)); //leak
-	free(buf);
+	char buf[PRMTLEN];
+	if (printf_debug("%s\n", getcwd(buf, PRMTLEN)) == 0)
+		status = 0;
+	else
+		status = 2;
 
 	return 1;
 }
