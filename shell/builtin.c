@@ -25,9 +25,25 @@ exit_shell(char *cmd)
 int
 cd(char *cmd)
 {
-	// Your code here
+	char *dir;
 
-	return 0;
+	if (strcmp(cmd, "cd") == 0 || strcmp(cmd, "cd ") == 0) {
+		dir = getenv("HOME");
+	} else if (strncmp(cmd, "cd ", 3) == 0) {
+		dir = cmd+3;
+	} else 
+		return 0; 
+
+	if (chdir(dir) < 0) {
+		perror("Error: cannot cd");
+		return 0;
+	} else {
+		char *buf = NULL;
+		snprintf(promt, sizeof promt, "(%s)", getcwd(buf, 0));
+		free(buf);		//// lo debe imprimir desde HOME?
+	}																// falta liberarlo
+
+	return 1;
 }
 
 // returns true if 'pwd' was invoked
@@ -38,7 +54,12 @@ cd(char *cmd)
 int
 pwd(char *cmd)
 {
-	// Your code here
+	if (strcmp(cmd, "pwd") != 0)
+		return 0;
 
-	return 0;
+	char* buf = NULL;
+	printf("%s\n", getcwd(buf, 0)); //leak
+	free(buf);
+
+	return 1;
 }

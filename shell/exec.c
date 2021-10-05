@@ -40,15 +40,22 @@ get_environ_value(char *arg, char *value, int idx)
 
 // sets the environment variables received
 // in the command line
-//
-// Hints:
-// - use 'block_contains()' to
-// 	get the index where the '=' is
-// - 'get_environ_*()' can be useful here
 static void
 set_environ_vars(char **eargv, int eargc)
 {
-	// Your code here
+	for(int i = 0; i < eargc; i++) {
+		int index = block_contains(eargv[i], '=');
+		if (index > 1) {
+			size_t n = strlen(eargv[i]);
+			char key[index+1];
+			char value[n-index];
+			get_environ_key(eargv[i], key);
+			get_environ_value(eargv[i], value, index);
+			if (setenv(key, value, 1) < 0) {
+				fprintf_debug(stderr, "Error en setenv\n"); // no hago exit
+			}	
+		}
+	}
 }
 
 // opens the file in which the stdin/stdout/stderr
@@ -75,13 +82,13 @@ pipe_coordinator(struct pipecmd *pipe_cmd)
 
 	int fds[2];
 	if (pipe(fds) < 0) {
-		fprintf_debug(stderr, "Error en pipe");
+		fprintf_debug(stderr, "Error en pipe\n");
 		return;
 	}
 
 	int f_l = fork();
 	if (f_l < 0) {
-		fprintf_debug(stderr, "Error en fork");
+		fprintf_debug(stderr, "Error en fork\n");
 		close(fds[0]);
 		close(fds[1]);
 		return;
@@ -98,9 +105,10 @@ pipe_coordinator(struct pipecmd *pipe_cmd)
 
 	int f_r = fork();
 	if (f_r < 0) {
-		printf_debug("Error en fork");  // espero al izq?
+		printf_debug("Error en fork");
 		close(fds[0]);
 		close(fds[1]);
+		wait(NULL);
 		return;
 	}
 
@@ -134,7 +142,7 @@ set_redir_fds(struct execcmd *cmd)
 	if (strlen(cmd->out_file) > 0) {
 		fds = open_redir_fd(cmd->out_file, rdwr_flags);
 		if (dup2(fds, 1) < 0) {
-			fprintf_debug(stderr, "Error al redirigir stdout");
+			fprintf_debug(stderr, "Error al redirigir stdout\n");
 			return -1;
 		}
 		close(fds);
@@ -143,7 +151,7 @@ set_redir_fds(struct execcmd *cmd)
 	if (strlen(cmd->in_file) > 0) {
 		fds = open_redir_fd(cmd->in_file, rd_flags);
 		if (dup2(fds, 0) < 0) {
-			fprintf_debug(stderr, "Error al redirigir stdin");
+			fprintf_debug(stderr, "Error al redirigir stdin\n");
 			return -1;
 		}
 		close(fds);
@@ -153,14 +161,14 @@ set_redir_fds(struct execcmd *cmd)
 		if (strcmp(cmd->err_file, "&1") == 0) {
 			if (dup2(1, 2) < 0) {
 				fprintf_debug(stderr,
-				              "Error al redirigir stderr");
+				              "Error al redirigir stderr\n");
 				return -1;
 			}
 		} else {
 			fds = open_redir_fd(cmd->err_file, rdwr_flags);
 			if (dup2(fds, 2) < 0) {
 				fprintf_debug(stderr,
-				              "Error al redirigir stderr");
+				              "Error al redirigir stderr\n");
 				return -1;
 			}
 			close(fds);
@@ -205,6 +213,7 @@ exec_cmd(struct cmd *cmd)
 	struct execcmd *r;
 	struct pipecmd *p;
 	int f = -1;
+	int status = 0;
 
 	switch (cmd->type) {
 	case EXEC:
@@ -213,7 +222,7 @@ exec_cmd(struct cmd *cmd)
 		f = fork();
 
 		if (f < 0) {
-			fprintf_debug(stderr, "Error en fork");
+			fprintf_debug(stderr, "Error en fork\n");
 			free_command(cmd);
 			_exit(-1);
 		}
@@ -224,44 +233,34 @@ exec_cmd(struct cmd *cmd)
 
 			if (argv_copy(e->argv, argc, argv) == -1) {
 				free_command(cmd);
-				fprintf(stderr, "Error en malloc");
+				fprintf_debug(stderr, "Error en malloc\n");
 				_exit(-1);
 			}
 
+			set_environ_vars(e->eargv, e->eargc);
 			free_command(cmd);
 			execvp(argv[0], argv);
-			fprintf_debug(stderr, "Error en execvp");
+			fprintf_debug(stderr, "Error en execvp\n");
 			free_args(argv, argc);
+			_exit(-1);
 		} else {
-			wait(NULL);
+			wait(&status);
 		}
 
 		free_command(cmd);
-		_exit(-1);
+
+		if (WIFEXITED(status))
+			_exit(WEXITSTATUS(status));
+		else
+			_exit(-1);
+		
 		break;
 
 	case BACK: {
 		b = (struct backcmd *) cmd;
-
-		if (b->c->type != EXEC) {
-			fprintf(stderr, "No soportado");
-			_exit(-1);
-		}
-
-		struct execcmd *c = (struct execcmd *) b->c;
-		int argc = c->argc;
-		char *argv[argc + 1];
-
-		if (argv_copy(c->argv, argc, argv) == -1) {
-			free_command(cmd);
-			fprintf(stderr, "Error en malloc");
-			_exit(-1);
-		}
-
-		free_command(cmd);
-		execvp(argv[0], argv);
-		fprintf_debug(stderr, "Error en execvp");
-		free_args(argv, argc);
+		struct cmd *c = b->c;
+		free(b);
+		exec_cmd(c);
 		_exit(-1);
 		break;
 	}
@@ -271,24 +270,20 @@ exec_cmd(struct cmd *cmd)
 		f = fork();
 
 		if (f < 0) {
-			fprintf_debug(stderr, "Error en fork");
+			fprintf_debug(stderr, "Error en fork\n");
 			free_command(cmd);
 			_exit(-1);
 		}
 
 		if (f == 0) {
-			if (set_redir_fds(r) == -1) {
-				free_command(cmd);
-				_exit(-1);
-			}
-			execvp(r->argv[0], r->argv);
-			fprintf_debug(stderr, "Error en execvp");
+			if (set_redir_fds(r) == 0)
+				exec_cmd(cmd);
 		} else {
-			wait(NULL);
+			wait(&status);
 		}
 
 		free_command(cmd);
-		_exit(-1);
+		_exit(status);
 		break;
 	}
 
@@ -297,14 +292,14 @@ exec_cmd(struct cmd *cmd)
 
 		if ((p->leftcmd->type != EXEC) ||
 		    (p->rightcmd->type != EXEC && p->rightcmd->type != PIPE)) {
-			fprintf_debug(stderr, "No soportado por pipe");
+			fprintf_debug(stderr, "No soportado por pipe\n");
 			free_command(cmd);
 			_exit(-1);
 		}
 
 		f = fork();
 		if (f < 0) {
-			fprintf_debug(stderr, "Error en fork");
+			fprintf_debug(stderr, "Error en fork\n");
 			free_command(cmd);
 			_exit(-1);
 		}
@@ -312,11 +307,11 @@ exec_cmd(struct cmd *cmd)
 		if (f == 0) {
 			pipe_coordinator(p);
 		} else {
-			wait(NULL);
+			wait(&status);
 		}
 
 		free_command(cmd);
-		_exit(-1);
+		_exit(status);
 		break;
 	}
 	}

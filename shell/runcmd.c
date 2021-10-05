@@ -10,9 +10,14 @@ run_cmd(char *cmd)
 	pid_t p;
 	struct cmd *parsed;
 
+	int w = -1;
+	do {
+		w = waitpid(-1, &status, WNOHANG);
+	} while (w > 0);
+
 	// if the "enter" key is pressed
 	// just print the promt again
-	if (cmd[0] == END_STRING)
+	if (cmd[0] == END_STRING)     // actualizar correctamente status
 		return 0;
 
 	// "cd" built-in call
@@ -51,11 +56,6 @@ run_cmd(char *cmd)
 		waitpid(p, &status, 0);
 		print_status_info(parsed);
 	}
-
-	int w = -1;
-	do {
-		w = waitpid(-1, &status, WNOHANG);
-	} while (w > 0);
 
 	free_command(parsed);
 
