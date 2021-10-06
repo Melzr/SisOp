@@ -22,7 +22,7 @@ run_cmd(char *cmd)
 		return 0;
 
 	// "cd" built-in call
-	if (cd(cmd)) 
+	if (cd(cmd))
 		return 0;
 
 	// "exit" built-in call

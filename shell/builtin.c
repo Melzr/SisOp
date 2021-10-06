@@ -31,9 +31,9 @@ cd(char *cmd)
 	if (strcmp(cmd, "cd") == 0 || strcmp(cmd, "cd ") == 0) {
 		dir = getenv("HOME");
 	} else if (strncmp(cmd, "cd ", 3) == 0) {
-		dir = cmd+3;
+		dir = cmd + 3;
 	} else {
-		return 0; 
+		return 0;
 	}
 
 	if (chdir(dir) < 0) {

@@ -43,12 +43,12 @@ get_environ_value(char *arg, char *value, int idx)
 static void
 set_environ_vars(char **eargv, int eargc)
 {
-	for(int i = 0; i < eargc; i++) {
+	for (int i = 0; i < eargc; i++) {
 		int index = block_contains(eargv[i], '=');
 		size_t n = strlen(eargv[i]);
 		if (index > 1) {
-			char key[index+1];
-			char value[n-index];
+			char key[index + 1];
+			char value[n - index];
 			get_environ_key(eargv[i], key);
 			get_environ_value(eargv[i], value, index);
 			if (setenv(key, value, 1) < 0)
@@ -86,7 +86,7 @@ set_fd(char *file, int flags, int fd)
 	close(new_fd);
 	return 0;
 }
- 
+
 // Sets file descriptors 0,1,2
 // Returns -1 on error
 static int
@@ -119,7 +119,7 @@ set_redir_fds(struct execcmd *cmd)
 }
 
 static void
-pipe_coordinator(struct pipecmd *pipe_cmd, int* status)
+pipe_coordinator(struct pipecmd *pipe_cmd, int *status)
 {
 	struct cmd *l = pipe_cmd->leftcmd;
 	struct cmd *r = pipe_cmd->rightcmd;
@@ -138,7 +138,7 @@ pipe_coordinator(struct pipecmd *pipe_cmd, int* status)
 		return;
 	}
 
-	if (f_l == 0) { 	// left
+	if (f_l == 0) {  // left
 		free_command(r);
 		free(pipe_cmd);
 		close(fds[0]);
@@ -156,7 +156,7 @@ pipe_coordinator(struct pipecmd *pipe_cmd, int* status)
 		return;
 	}
 
-	if ((f_l > 0) && (f_r == 0)) { // right
+	if ((f_l > 0) && (f_r == 0)) {  // right
 		free_command(l);
 		free(pipe_cmd);
 		close(fds[1]);
@@ -168,8 +168,8 @@ pipe_coordinator(struct pipecmd *pipe_cmd, int* status)
 	if ((f_l > 0) && (f_r > 0)) {  // coordinator
 		close(fds[1]);
 		close(fds[0]);
-		wait(status);
-		wait(status);
+		waitpid(f_l, NULL, 0);
+		waitpid(f_r, status, 0);
 	}
 }
 
@@ -199,11 +199,11 @@ free_args(char *argv[], int argc)
 static void
 end_as_status(int status)
 {
-	if (WEXITSTATUS(status)) 
+	if (WEXITSTATUS(status))
 		_exit(WEXITSTATUS(status));
 	else if (WIFSIGNALED(status))
 		kill(getpid(), WTERMSIG(status));
-	else 
+	else
 		_exit(status);
 }
 
@@ -279,8 +279,7 @@ exec_cmd(struct cmd *cmd)
 	case PIPE: {
 		p = (struct pipecmd *) cmd;
 
-		if ((p->leftcmd->type != EXEC) ||
-		    (p->rightcmd->type == BACK)) {
+		if ((p->leftcmd->type != EXEC) || (p->rightcmd->type == BACK)) {
 			fprintf_debug(stderr, "No soportado\n");
 			free_command(cmd);
 			_exit(-1);
@@ -299,12 +298,7 @@ exec_cmd(struct cmd *cmd)
 			wait(&status);
 
 		free_command(cmd);
-
-		if (WEXITSTATUS(status))
-			_exit(WEXITSTATUS(status));
-		else
-			_exit(-1);
-
+		end_as_status(status);
 		break;
 	}
 	}

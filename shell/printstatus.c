@@ -4,7 +4,17 @@
 void
 print_status_info(struct cmd *cmd)
 {
-	if (strlen(cmd->scmd) == 0 || cmd->type == PIPE)
+	if (cmd->type == PIPE) {
+		if (WIFEXITED(status))
+			status = WEXITSTATUS(status);
+		else if (WIFSIGNALED(status))
+			status = -WTERMSIG(status);
+		else if (WIFSTOPPED(status))
+			status = -WSTOPSIG(status);
+		return;
+	}
+
+	if (strlen(cmd->scmd) == 0)
 		return;
 
 	if (WIFEXITED(status)) {

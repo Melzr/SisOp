@@ -94,16 +94,16 @@ parse_environ_var(struct execcmd *c, char *arg)
 static char *
 expand_environ_var(char *arg)
 {
-	if ( !arg || arg[0] != '$' )
+	if (!arg || arg[0] != '$')
 		return arg;
 
 	if (strcmp(arg, "$?") == 0) {
-		arg = realloc(arg, sizeof(char)*4);
+		arg = realloc(arg, sizeof(char) * 4);
 		sprintf(arg, "%d", status);
 		return arg;
 	}
 
-	char *value = getenv(arg+1);
+	char *value = getenv(arg + 1);
 
 	if (!value) {
 		arg[0] = '\0';
@@ -114,7 +114,7 @@ expand_environ_var(char *arg)
 	char *r = NULL;
 
 	if (n > strlen(arg)) {
-		r = realloc(arg, sizeof(char)*(n+1));
+		r = realloc(arg, sizeof(char) * (n + 1));
 	}
 
 	// Si falla realloc ejecuto el comando con el argumento ""
