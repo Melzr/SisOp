@@ -15,7 +15,6 @@ run_cmd(char *cmd)
 		w = waitpid(-1, NULL, WNOHANG);
 	} while (w > 0);
 
-
 	// if the "enter" key is pressed
 	// just print the promt again
 	if (cmd[0] == END_STRING)

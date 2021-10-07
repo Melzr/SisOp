@@ -52,7 +52,7 @@ set_environ_vars(char **eargv, int eargc)
 			get_environ_key(eargv[i], key);
 			get_environ_value(eargv[i], value, index);
 			if (setenv(key, value, 1) < 0)
-				fprintf_debug(stderr, "Error en setenv\n");
+				perror("Error en setenv");
 		}
 	}
 }
@@ -79,7 +79,7 @@ set_fd(char *file, int flags, int fd)
 {
 	int new_fd = open_redir_fd(file, flags);
 	if (dup2(new_fd, fd) < 0) {
-		fprintf_debug(stderr, "Error al redirigir %s\n", file);
+		perror("Error al redirigir el archivo");
 		close(new_fd);
 		return -1;
 	}
@@ -107,8 +107,7 @@ set_redir_fds(struct execcmd *cmd)
 	if (strlen(cmd->err_file) > 0) {
 		if (strcmp(cmd->err_file, "&1") == 0) {
 			if (dup2(1, 2) < 0) {
-				fprintf_debug(stderr,
-				              "Error al redirigir stderr\n");
+				perror("Error al redirigir stderr");
 				return -1;
 			}
 		} else if (set_fd(cmd->err_file, rdwr_flags, 2) < 0)
@@ -118,6 +117,7 @@ set_redir_fds(struct execcmd *cmd)
 	return 0;
 }
 
+// Executes pipe command and waits for both processes
 static void
 pipe_coordinator(struct pipecmd *pipe_cmd, int *status)
 {
@@ -126,13 +126,13 @@ pipe_coordinator(struct pipecmd *pipe_cmd, int *status)
 
 	int fds[2];
 	if (pipe(fds) < 0) {
-		fprintf_debug(stderr, "Error en pipe\n");
+		perror("Error en pipe\n");
 		return;
 	}
 
 	int f_l = fork();
 	if (f_l < 0) {
-		fprintf_debug(stderr, "Error en fork\n");
+		perror("Error en fork\n");
 		close(fds[0]);
 		close(fds[1]);
 		return;
@@ -149,7 +149,7 @@ pipe_coordinator(struct pipecmd *pipe_cmd, int *status)
 
 	int f_r = fork();
 	if (f_r < 0) {
-		printf_debug("Error en fork");
+		perror("Error en fork");
 		close(fds[0]);
 		close(fds[1]);
 		wait(NULL);
@@ -173,29 +173,8 @@ pipe_coordinator(struct pipecmd *pipe_cmd, int *status)
 	}
 }
 
-// Returns -1 on malloc error
-static int
-argv_copy(char *argv[], int argc, char *argv_copy[])
-{
-	for (int i = 0; i < argc; i++) {
-		argv_copy[i] = malloc(sizeof(char) * (strlen(argv[i]) + 1));
-		if (argv_copy[i] == NULL)
-			return -1;
-		strcpy(argv_copy[i], argv[i]);
-	}
-
-	argv_copy[argc] = NULL;
-	return 0;
-}
-
-static void
-free_args(char *argv[], int argc)
-{
-	for (int i = 0; i < argc; i++) {
-		free(argv[i]);
-	}
-}
-
+// Termina un proceso segun el estado recibido por un wait() a un proceso hijo
+// Asi el wait() en runcmd.c agarra el estado correctamente
 static void
 end_as_status(int status)
 {
@@ -220,31 +199,18 @@ exec_cmd(struct cmd *cmd)
 
 	switch (cmd->type) {
 	case EXEC:
-
 		e = (struct execcmd *) cmd;
 		int f = fork();
 
 		if (f < 0) {
-			fprintf_debug(stderr, "Error en fork\n");
+			perror("Error en fork\n");
 			free_command(cmd);
 			_exit(-1);
-		}
-
-		if (f == 0) {
-			int argc = e->argc;
-			char *argv[argc + 1];
-
-			if (argv_copy(e->argv, argc, argv) == -1) {
-				free_command(cmd);
-				fprintf_debug(stderr, "Error en malloc\n");
-				_exit(-1);
-			}
-
+		} else if (f == 0) {
 			set_environ_vars(e->eargv, e->eargc);
+			execvp(e->argv[0], e->argv);
+			perror("Error en execvp");
 			free_command(cmd);
-			execvp(argv[0], argv);
-			fprintf_debug(stderr, "Error en execvp\n");
-			free_args(argv, argc);
 			_exit(-1);
 		} else
 			wait(&status);
@@ -278,21 +244,13 @@ exec_cmd(struct cmd *cmd)
 
 	case PIPE: {
 		p = (struct pipecmd *) cmd;
-
-		if ((p->leftcmd->type != EXEC) || (p->rightcmd->type == BACK)) {
-			fprintf_debug(stderr, "No soportado\n");
-			free_command(cmd);
-			_exit(-1);
-		}
-
 		int f = fork();
+
 		if (f < 0) {
-			fprintf_debug(stderr, "Error en fork\n");
+			perror("Error en fork");
 			free_command(cmd);
 			_exit(-1);
-		}
-
-		if (f == 0) {
+		} else if (f == 0) {
 			pipe_coordinator(p, &status);
 		} else
 			wait(&status);
