@@ -59,11 +59,12 @@ lectura_argumentos(char *argumentos[NARGS + 2], char *comando, FILE **archivo)
 	int lectura = getline(&linea, &n, *archivo);
 
 	while ((i <= NARGS) && (lectura > 0)) {
-		if (linea[strlen(linea) - 1] == '\n') {
-			linea[strlen(linea) - 1] = '\0';
+		if (linea[lectura - 1] == '\n') {
+			linea[lectura - 1] = '\0';
+			lectura--;
 		}
 
-		argumentos[i] = malloc(sizeof(char) * (strlen(linea) + 1));
+		argumentos[i] = malloc(sizeof(char) * (lectura + 1));
 		if (argumentos == NULL) {
 			free(linea);
 			perror("Error en malloc");

@@ -68,16 +68,15 @@ main(void)
 		printf("\t- getpid me devuelve: %d\n", getpid());
 		printf("\t- getppid me devuelve: %d\n", getppid());
 		printf("\t- random me devuelve: %i\n", escritura);
+		printf("\t- envio valor %i a traves de fd=%i\n\n",
+		       escritura,
+		       fds_1[1]);
+		close(fds_1[1]);
 
 		if (write(fds_1[1], &escritura, sizeof(escritura)) < 0) {
 			perror("Error en write");
 			_exit(-1);
 		}
-
-		printf("\t- envio valor %i a traves de fd=%i\n\n",
-		       escritura,
-		       fds_1[1]);
-		close(fds_1[1]);
 
 		if (read(fds_2[0], &lectura, sizeof(lectura)) < 0) {
 			perror("Error en read");
