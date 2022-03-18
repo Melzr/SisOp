@@ -10,6 +10,11 @@ run_cmd(char *cmd)
 	pid_t p;
 	struct cmd *parsed;
 
+	int w = -1;
+	do {
+		w = waitpid(-1, NULL, WNOHANG);
+	} while (w > 0);
+
 	// if the "enter" key is pressed
 	// just print the promt again
 	if (cmd[0] == END_STRING)
@@ -44,19 +49,13 @@ run_cmd(char *cmd)
 	// store the pid of the process
 	parsed->pid = p;
 
-	// background process special treatment
-	// Hint:
-	// - check if the process is
-	//		going to be run in the 'back'
-	// - print info about it with
-	// 	'print_back_info()'
-	//
-	// Your code here
-
-	// waits for the process to finish
-	waitpid(p, &status, 0);
-
-	print_status_info(parsed);
+	if (parsed->type == BACK) {
+		print_back_info(parsed);
+	} else {
+		// waits for the process to finish
+		waitpid(p, &status, 0);
+		print_status_info(parsed);
+	}
 
 	free_command(parsed);
 

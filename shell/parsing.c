@@ -91,17 +91,41 @@ parse_environ_var(struct execcmd *c, char *arg)
 // environment value should be performed. Otherwise the same
 // token is returned. If the variable does not exist, an empty string should be
 // returned within the token
-//
-// Hints:
-// - check if the first byte of the argument contains the '$'
-// - expand it and copy the value in 'arg'
-// - remember to check the size of variable's value
-//		It could be greater than the current size of 'arg'
-//		If that's the case, you should realloc 'arg' to the new size.
 static char *
 expand_environ_var(char *arg)
 {
-	// Your code here
+	if (!arg || arg[0] != '$')
+		return arg;
+
+	if (strcmp(arg, "$?") == 0) {
+		arg = realloc(arg, sizeof(char) * 4);
+		sprintf(arg, "%d", status);
+		return arg;
+	}
+
+	char *value = getenv(arg + 1);
+
+	if (!value) {
+		arg[0] = '\0';
+		return arg;
+	}
+
+	size_t n = strlen(value);
+	char *r = NULL;
+
+	if (n > strlen(arg)) {
+		r = realloc(arg, sizeof(char) * (n + 1));
+	}
+
+	// Si falla realloc ejecuto el comando con el argumento ""
+	if (!r) {
+		fprintf_debug(stderr, "Error en realloc\n");
+		arg[0] = '\0';
+		return arg;
+	}
+
+	arg = r;
+	strcpy(arg, value);
 
 	return arg;
 }
@@ -189,7 +213,11 @@ parse_line(char *buf)
 	char *right = split_line(buf, '|');
 
 	l = parse_cmd(buf);
-	r = parse_cmd(right);
+
+	if (strlen(right) > 0)
+		r = parse_line(right);
+	else
+		r = parse_cmd(right);
 
 	return pipe_cmd_create(l, r);
 }

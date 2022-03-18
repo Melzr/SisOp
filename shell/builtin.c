@@ -1,4 +1,5 @@
 #include "builtin.h"
+#include "utils.h"
 
 // returns true if the 'exit' call
 // should be performed
@@ -7,9 +8,7 @@
 int
 exit_shell(char *cmd)
 {
-	// Your code here
-
-	return 0;
+	return (strcmp(cmd, "exit") == 0);
 }
 
 // returns true if "chdir" was performed
@@ -27,9 +26,27 @@ exit_shell(char *cmd)
 int
 cd(char *cmd)
 {
-	// Your code here
+	char *dir;
 
-	return 0;
+	if (strcmp(cmd, "cd") == 0 || strcmp(cmd, "cd ") == 0) {
+		dir = getenv("HOME");
+	} else if (strncmp(cmd, "cd ", 3) == 0) {
+		dir = cmd + 3;
+	} else {
+		return 0;
+	}
+
+	if (chdir(dir) < 0) {
+		perror("Error: cannot cd");
+		status = 2;
+		return -1;
+	} else {
+		char buf[PRMTLEN];
+		snprintf(promt, sizeof promt, "(%s)", getcwd(buf, PRMTLEN));
+	}
+
+	status = 0;
+	return 1;
 }
 
 // returns true if 'pwd' was invoked
@@ -40,7 +57,14 @@ cd(char *cmd)
 int
 pwd(char *cmd)
 {
-	// Your code here
+	if (strcmp(cmd, "pwd") != 0)
+		return 0;
 
-	return 0;
+	char buf[PRMTLEN];
+	if (printf_debug("%s\n", getcwd(buf, PRMTLEN)) == 0)
+		status = 0;
+	else
+		status = 2;
+
+	return 1;
 }

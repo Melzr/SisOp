@@ -4,6 +4,7 @@
 #include "defs.h"
 
 extern char promt[PRMTLEN];
+extern int status;
 
 int cd(char *cmd);
 
