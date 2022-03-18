@@ -212,9 +212,9 @@ exec_cmd(struct cmd *cmd)
 			perror("Error en execvp");
 			free_command(cmd);
 			_exit(-1);
-		} else
-			wait(&status);
-
+		} 
+		
+		wait(&status);
 		free_command(cmd);
 		end_as_status(status);
 		break;
